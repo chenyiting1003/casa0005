@@ -34,6 +34,8 @@ Note that the `echo = FALSE` parameter was added to the code chunk to prevent pr
 ```{r setup, include=FALSE}
 library(sf)
 library(dplyr)
+library(tidyr)
+library(readr)
 library(ggplot2)
 ```
 
@@ -43,9 +45,85 @@ library(ggplot2)
 world_sf <- st_read("World_Countries_(Generalized)_9029012925078512962.geojson")
 
 # Load gender inequality data
-gender_inequality<-read.csv("global_gender_indequality_index-data.csv")
+gender_inequality<-read.csv("global_gender.csv",encoding = "UTF-8")
+print(gender_inequality)
 ```
 
 
+```{note}
+##I think something wrong here below? can not use the beginning buttom,just use"ctrl+enter".
+```
+
+```{select GII data}
+# Filter and select relevant columns
+gii_data <- gender_inequality %>%
+  dplyr::filter(indexCode == "GII", year %in% c("2010", "2019")) %>%
+  dplyr::select(countryIsoCode, country, year, value)
+print(gii_data)
+
+gii2010 <- gii_data%>%
+  dplyr::filter(year == "2010") %>%
+  dplyr::select(countryIsoCode, country, value)
+print(gii2010)
+
+gii2019 <- gii_data%>%
+dplyr::filter(year == "2019") %>%
+  dplyr::select(countryIsoCode, country, value)
+print(gii2019)
+```
+
+
+```{mutate data}
+# Merge the two data frames by countryIsoCode
+gii_merged <- gii2010 %>%
+  inner_join(gii2019, by = "country", suffix = c("_2010", "_2019"))
+
+
+# Calculate the difference in GII values
+gii_difference <- gii_merged %>%
+  dplyr::mutate(value_difference = value_2019 - value_2010) %>%
+  dplyr::select(country, value_difference)
+
+print(gii_difference)
+```
+
+
+```{add data to map}
+#check the colnames first
+print(colnames(gii_difference))
+print(head(gii_difference))
+print(class(gii_difference$country)) 
+print(colnames(world_sf))
+print(head(world_sf))
+
+#find the title
+world_gii <- world_sf %>%
+  left_join(gii_difference, by = c("COUNTRY" = "country")) 
+
+print(head(world_gii))
+```
+
+
+```{plot map}
+ggplot(data = world_gii) +
+  geom_sf(aes(fill = value_difference), color = "black", size = 0.2) +
+  scale_fill_gradient2(
+    low = "green",    
+    mid = "white",     
+    high = "red",      
+    midpoint = 0,      
+    na.value = "grey90", 
+    name = "GII Difference\n(2010 - 2019)"
+  ) +
+  theme_minimal() +
+  labs(
+    title = "Global Gender Inequality Index Difference (2010 - 2019)",
+    subtitle = "Red: Increased Inequality | Green: Decreased Inequality"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 12)
+  )
+```
 
 
